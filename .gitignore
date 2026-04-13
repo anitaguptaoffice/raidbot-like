@@ -1,5 +1,6 @@
 .DS_Store
 .next
+.tools
 coverage
 dist
 node_modules

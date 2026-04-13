@@ -3,6 +3,7 @@ import { promisify } from "node:util";
 
 import type { FightStyle } from "@/shared/sim-types";
 import { buildSimcArgs } from "@/server/simc/build-command";
+import { resolveSimcBin } from "@/server/simc/resolve-simc-bin";
 
 const execFile = promisify(execFileCallback);
 
@@ -50,7 +51,7 @@ export function createSimcRunner(dependencies?: {
   simcBin?: string;
 }) {
   const runExecFile = dependencies?.execFile ?? execFile;
-  const simcBin = dependencies?.simcBin ?? process.env.SIMC_BIN ?? "simc";
+  const simcBin = dependencies?.simcBin ?? resolveSimcBin();
 
   return {
     async run(input: RunInput) {
