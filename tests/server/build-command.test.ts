@@ -44,4 +44,14 @@ describe("build-command", () => {
       ]),
     );
   });
+
+  it("does not hardcode json output redirection in the shared args builder", () => {
+    expect(
+      buildSimcArgs({
+        simcProfile: "warlock=Demo\nspec=demonology",
+        fightStyle: "patchwerk",
+        numEnemies: 1,
+      }),
+    ).not.toEqual(expect.arrayContaining(["json2=stdout"]));
+  });
 });

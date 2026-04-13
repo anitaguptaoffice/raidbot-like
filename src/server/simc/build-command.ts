@@ -23,6 +23,5 @@ export function buildSimcArgs(input: BuildSimcArgsInput) {
     `fight_style=${SIMC_FIGHT_STYLE_MAP[input.fightStyle]}`,
     `desired_targets=${input.numEnemies}`,
     "iterations=10000",
-    "json2=stdout",
   ];
 }
