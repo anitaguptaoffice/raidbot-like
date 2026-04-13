@@ -10,6 +10,8 @@ describe("dps-form", () => {
     render(<DpsForm onSubmit={vi.fn()} isPending={false} />);
 
     expect(screen.getByText(/当前仅支持恶魔术/i)).toBeInTheDocument();
+    expect(screen.getByText(/AOE 通过 Num Enemies 表达/i)).toBeInTheDocument();
+    expect(screen.getByText(/Dungeon Slice 适合大秘境切片/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/fight style/i)).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Patchwerk" })).toBeInTheDocument();
     expect(
@@ -40,5 +42,18 @@ describe("dps-form", () => {
       fightStyle: "dungeon_slice",
       numEnemies: 5,
     });
+    expect(screen.getByText(/6 分钟大秘境切片/i)).toBeInTheDocument();
+  });
+
+  it("blocks submission when the profile is empty", async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+
+    render(<DpsForm onSubmit={onSubmit} isPending={false} />);
+
+    await user.click(screen.getByRole("button", { name: /开始模拟/i }));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByText(/请先粘贴 simc profile/i)).toBeInTheDocument();
   });
 });

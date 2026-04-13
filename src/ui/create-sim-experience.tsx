@@ -13,12 +13,26 @@ export function CreateSimExperience() {
 
   return (
     <main className="page-shell">
-      <div className="hero-copy">
-        <div className="eyebrow">Raidbots-like</div>
-        <h2>先把恶魔术 DPS 模拟做稳。</h2>
-        <p className="muted">
-          当前范围只做单次 DPS 模拟。Top Gear 预留扩展位，但不在首版上线。
-        </p>
+      <div className="hero-surface">
+        <div className="hero-copy">
+          <div className="eyebrow">Raidbots-like</div>
+          <h2>先把恶魔术 DPS 模拟做稳。</h2>
+          <p className="muted">
+            当前范围只做单次 DPS 模拟。Top Gear 预留扩展位，但不在首版上线。
+          </p>
+        </div>
+        <div className="hero-metrics">
+          <article className="metric-card">
+            <span>Fight Styles</span>
+            <strong>3</strong>
+            <p className="muted">Patchwerk / Dungeon Slice / Target Dummy</p>
+          </article>
+          <article className="metric-card">
+            <span>Spec</span>
+            <strong>恶魔术</strong>
+            <p className="muted">首版只开放单专精，先把真实链路跑稳。</p>
+          </article>
+        </div>
       </div>
 
       <DpsForm

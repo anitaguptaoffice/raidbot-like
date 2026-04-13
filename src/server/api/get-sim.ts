@@ -19,6 +19,11 @@ export async function getSimById(jobId: string, repository: JobRepository) {
       numEnemies: record.numEnemies,
     },
     result: record.resultSummary,
+    retryPayload: {
+      simcProfile: record.simcProfileSnapshot,
+      fightStyle: record.fightStyle,
+      numEnemies: record.numEnemies,
+    },
     rawOutput: record.rawOutput,
     errorMessage: record.errorMessage,
     createdAt: record.createdAt,

@@ -34,6 +34,11 @@ describe("get-sim", () => {
         fightStyle: "target_dummy",
         numEnemies: 3,
       },
+      retryPayload: {
+        simcProfile: "warlock=Demo\nspec=demonology",
+        fightStyle: "target_dummy",
+        numEnemies: 3,
+      },
       result: {
         meanDps: 98765.4,
       },

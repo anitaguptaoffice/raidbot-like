@@ -13,6 +13,11 @@ export type SimJobResponse = {
     meanDps: number;
     errorMargin: number;
   } | null;
+  retryPayload: {
+    simcProfile: string;
+    fightStyle: FightStyle;
+    numEnemies: number;
+  };
   rawOutput: string | null;
   errorMessage: string | null;
   createdAt: string;
