@@ -76,6 +76,7 @@ export function createSimcRunner(dependencies?: {
   simcBin?: string;
   fileSystem?: {
     mkdtemp: typeof fs.mkdtemp;
+    writeFile: typeof fs.writeFile;
     readFile: typeof fs.readFile;
     rm: typeof fs.rm;
   };
@@ -84,6 +85,7 @@ export function createSimcRunner(dependencies?: {
   const simcBin = dependencies?.simcBin ?? resolveSimcBin();
   const fileSystem = dependencies?.fileSystem ?? {
     mkdtemp: fs.mkdtemp,
+    writeFile: fs.writeFile,
     readFile: fs.readFile,
     rm: fs.rm,
   };
@@ -91,10 +93,13 @@ export function createSimcRunner(dependencies?: {
   return {
     async run(input: RunInput) {
       const tempDir = await fileSystem.mkdtemp(path.join(os.tmpdir(), "simc-runner-"));
+      const profilePath = path.join(tempDir, "input.simc");
       const jsonOutputPath = path.join(tempDir, "result.json");
 
       try {
-        const args = [...buildSimcArgs(input), `json2=${jsonOutputPath}`];
+        await fileSystem.writeFile(profilePath, input.simcProfile, "utf8");
+
+        const args = [profilePath, ...buildSimcArgs(input), `json2=${jsonOutputPath}`];
         const { stdout, stderr } = await runExecFile(simcBin, args);
         const rawOutput = [stdout, stderr].filter(Boolean).join("\n").trim();
         const jsonOutput = await fileSystem.readFile(jsonOutputPath, "utf8");
