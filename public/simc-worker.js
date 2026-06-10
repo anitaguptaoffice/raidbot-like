@@ -64,16 +64,27 @@ async function loadGzipWasmBinary(url) {
   return new Uint8Array(await new Response(decompressed).arrayBuffer());
 }
 
-async function loadWasmBinary(normalizedBase) {
+async function loadWasmBinary(assetUrl) {
+  if (/\.wasm\.gz(?:[?#].*)?$/.test(assetUrl)) {
+    postStatus("下载压缩 WASM", 9);
+    return await loadGzipWasmBinary(assetUrl);
+  }
+
+  if (/\.wasm(?:[?#].*)?$/.test(assetUrl)) {
+    postStatus("下载 WASM", 9);
+    const response = await fetch(assetUrl);
+    return readResponseBytes(response);
+  }
+
   try {
     postStatus("下载压缩 WASM", 9);
-    return await loadGzipWasmBinary(`${normalizedBase}/simc.wasm.gz`);
+    return await loadGzipWasmBinary(`${assetUrl}/simc.wasm.gz`);
   } catch (gzipError) {
     pushLog(`压缩 WASM 不可用，回退原始 WASM：${gzipError instanceof Error ? gzipError.message : String(gzipError)}`);
   }
 
   postStatus("下载 WASM", 9);
-  const response = await fetch(`${normalizedBase}/simc.wasm`);
+  const response = await fetch(`${assetUrl}/simc.wasm`);
   return readResponseBytes(response);
 }
 

@@ -59,8 +59,41 @@ type AuthLike = {
   } | null>;
 };
 type VerifyOtpCallback = (payload: { token: string; messageId?: string }) => Promise<unknown>;
+type TempFileURLResult = {
+  fileList?: Array<{
+    code?: string;
+    message?: string;
+    fileID?: string;
+    tempFileURL?: string;
+    download_url?: string;
+  }>;
+  data?: {
+    download_list?: Array<{
+      code?: string;
+      message?: string;
+      fileID?: string;
+      tempFileURL?: string;
+      download_url?: string;
+    }>;
+  };
+};
+type CloudbaseAppLike = {
+  auth: () => AuthLike;
+  getTempFileURL?: (
+    params: {
+      fileList: Array<
+        | string
+        | {
+            fileID: string;
+            maxAge?: number;
+          }
+      >;
+    },
+  ) => Promise<TempFileURLResult>;
+};
 
 let authInstance: AuthLike | null = null;
+let cloudbaseApp: CloudbaseAppLike | null = null;
 const pendingEmailVerifyCallbacks = new Map<string, VerifyOtpCallback>();
 const E2E_FAKE_AUTH_ENABLED = process.env.NEXT_PUBLIC_E2E_FAKE_AUTH === "1";
 
@@ -68,6 +101,9 @@ const publicCloudbaseEnv = {
   NEXT_PUBLIC_TCB_ENV_ID: process.env.NEXT_PUBLIC_TCB_ENV_ID,
   NEXT_PUBLIC_TCB_ENV: process.env.NEXT_PUBLIC_TCB_ENV,
   NEXT_PUBLIC_TCB_REGION: process.env.NEXT_PUBLIC_TCB_REGION,
+  NEXT_PUBLIC_SIMC_WASM_FILE_ID: process.env.NEXT_PUBLIC_SIMC_WASM_FILE_ID,
+  NEXT_PUBLIC_SIMC_WASM_BASE_URL: process.env.NEXT_PUBLIC_SIMC_WASM_BASE_URL,
+  NEXT_PUBLIC_TCB_WASM_CLOUD_PREFIX: process.env.NEXT_PUBLIC_TCB_WASM_CLOUD_PREFIX,
 };
 
 function readEnv(names: string[]) {
@@ -85,9 +121,9 @@ function readEnv(names: string[]) {
   throw new Error("CloudBase 参数未配置。");
 }
 
-function getAuth(): AuthLike {
-  if (authInstance) {
-    return authInstance;
+function getCloudbaseApp(): CloudbaseAppLike {
+  if (cloudbaseApp) {
+    return cloudbaseApp;
   }
 
   const envId = readEnv(["NEXT_PUBLIC_TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV"]);
@@ -101,11 +137,16 @@ function getAuth(): AuthLike {
     region,
   };
 
-  const app = cloudbase.init(initConfig) as unknown as {
-    auth: () => AuthLike;
-  };
+  cloudbaseApp = cloudbase.init(initConfig) as unknown as CloudbaseAppLike;
+  return cloudbaseApp;
+}
 
-  authInstance = app.auth();
+function getAuth(): AuthLike {
+  if (authInstance) {
+    return authInstance;
+  }
+
+  authInstance = getCloudbaseApp().auth();
   return authInstance;
 }
 
@@ -365,4 +406,61 @@ export async function getCloudbaseSession(): Promise<CloudbaseSession> {
       nickname: null,
     };
   }
+}
+
+export function getSimcWasmFileId() {
+  const configuredFileId = publicCloudbaseEnv.NEXT_PUBLIC_SIMC_WASM_FILE_ID;
+  if (configuredFileId) {
+    return configuredFileId;
+  }
+
+  const envId = readEnv(["NEXT_PUBLIC_TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV"]);
+  const prefix = publicCloudbaseEnv.NEXT_PUBLIC_TCB_WASM_CLOUD_PREFIX ?? "simc-dist";
+  const storageHost = publicCloudbaseEnv.NEXT_PUBLIC_SIMC_WASM_BASE_URL
+    ? new URL(publicCloudbaseEnv.NEXT_PUBLIC_SIMC_WASM_BASE_URL).host.replace(/\.tcb\.qcloud\.la$/, "")
+    : null;
+
+  if (storageHost) {
+    return `cloud://${envId}.${storageHost}/${prefix.replace(/^\/|\/$/g, "")}/current/simc.wasm.gz`;
+  }
+
+  return `cloud://${envId}/${prefix.replace(/^\/|\/$/g, "")}/current/simc.wasm.gz`;
+}
+
+export async function getSimcWasmAssetBaseUrl() {
+  if (E2E_FAKE_AUTH_ENABLED) {
+    return process.env.NEXT_PUBLIC_SIMC_WASM_BASE_URL ?? "/simc-dist";
+  }
+
+  const app = getCloudbaseApp();
+  if (!app.getTempFileURL) {
+    throw new Error("当前 CloudBase SDK 不支持获取云存储临时下载链接。");
+  }
+
+  const fileID = getSimcWasmFileId();
+  const result = await app.getTempFileURL({
+    fileList: [
+      {
+        fileID,
+        maxAge: 30 * 60 * 1000,
+      },
+    ],
+  });
+  unwrapCloudbaseResult(result);
+
+  const file =
+    result.fileList?.[0] ??
+    result.data?.download_list?.[0] ??
+    null;
+
+  if (!file || file.code && file.code !== "SUCCESS") {
+    throw new Error(file?.message || "获取 SimulationCraft WASM 下载链接失败。");
+  }
+
+  const tempFileURL = file.tempFileURL ?? file.download_url;
+  if (!tempFileURL) {
+    throw new Error("CloudBase 没有返回 SimulationCraft WASM 下载链接。");
+  }
+
+  return tempFileURL;
 }

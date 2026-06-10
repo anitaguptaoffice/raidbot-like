@@ -8,6 +8,7 @@ import { startTransition, useEffect, useState } from "react";
 import {
   beginEmailPasswordSignUp,
   getCloudbaseSession,
+  getSimcWasmAssetBaseUrl,
   isEmailAccount,
   isUserNotFoundError,
   signInWithPassword,
@@ -16,7 +17,7 @@ import {
 } from "@/lib/cloudbase";
 import { listLocalSimHistory, saveLocalSimHistory } from "@/lib/local-sim-history";
 import { mapLocalHistoryToListItem } from "@/lib/local-sim-response";
-import { parseLocalSimcResult, getDefaultWasmAssetBaseUrl } from "@/lib/local-sim-result";
+import { parseLocalSimcResult } from "@/lib/local-sim-result";
 import { runLocalSimc, type LocalSimProgress } from "@/lib/local-sim-runner";
 import {
   applyLocalTopGearComboToProfile,
@@ -341,6 +342,12 @@ export function CreateSimExperience() {
             try {
               const simulationOptions = normalizeSimulationOptions(payload.simulationOptions);
               const iterations = simulationOptions.highPrecision ? 100000 : 10000;
+              setRunProgress({
+                phase: "获取 SimulationCraft WASM 下载链接",
+                percentage: 4,
+                logTail: [],
+              });
+              const assetBaseUrl = await getSimcWasmAssetBaseUrl();
               const runner = runLocalSimc(
                 {
                   profile: payload.simcProfile,
@@ -349,7 +356,7 @@ export function CreateSimExperience() {
                   fightLengthSeconds: simulationOptions.fightLengthSeconds,
                   iterations,
                   threadCount: simulationOptions.threadCount,
-                  assetBaseUrl: getDefaultWasmAssetBaseUrl(),
+                  assetBaseUrl,
                 },
                 setRunProgress,
               );
@@ -413,6 +420,12 @@ export function CreateSimExperience() {
             try {
               const simulationOptions = normalizeSimulationOptions(payload.simulationOptions);
               const iterations = simulationOptions.highPrecision ? 100000 : 10000;
+              setRunProgress({
+                phase: "获取 SimulationCraft WASM 下载链接",
+                percentage: 4,
+                logTail: [],
+              });
+              const assetBaseUrl = await getSimcWasmAssetBaseUrl();
               const candidates = extractLocalTopGearCandidates(payload.simcProfile);
               const selectedSet = new Set(payload.selectedTrinkets);
               const filteredCandidates =
@@ -443,7 +456,7 @@ export function CreateSimExperience() {
                   fightLengthSeconds: simulationOptions.fightLengthSeconds,
                   iterations,
                   threadCount: simulationOptions.threadCount,
-                  assetBaseUrl: getDefaultWasmAssetBaseUrl(),
+                  assetBaseUrl,
                 }, (progress) => {
                   const base = 5;
                   const span = 90;
