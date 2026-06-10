@@ -111,7 +111,17 @@ jobs:
 
       - name: Build static app
         if: steps.release_check.outputs.exists != 'true'
-        run: npm run build
+        env:
+          NEXT_PUBLIC_TCB_ENV_ID: ${{ vars.NEXT_PUBLIC_TCB_ENV_ID || secrets.NEXT_PUBLIC_TCB_ENV_ID }}
+          NEXT_PUBLIC_TCB_ENV: ${{ vars.NEXT_PUBLIC_TCB_ENV || secrets.NEXT_PUBLIC_TCB_ENV }}
+          NEXT_PUBLIC_TCB_REGION: ${{ vars.NEXT_PUBLIC_TCB_REGION || secrets.NEXT_PUBLIC_TCB_REGION || 'ap-shanghai' }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NEXT_PUBLIC_TCB_ENV_ID:-}" && -z "${NEXT_PUBLIC_TCB_ENV:-}" ]]; then
+            echo "NEXT_PUBLIC_TCB_ENV_ID / NEXT_PUBLIC_TCB_ENV is required. Configure it in GitHub Actions Variables or Secrets." >&2
+            exit 1
+          fi
+          npm run build
 
       - name: Deploy static app to cf-pages branch
         if: steps.release_check.outputs.exists != 'true'
