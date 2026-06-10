@@ -1,11 +1,8 @@
 #!/usr/bin/env node
 
-import { createRequire } from "node:module";
+import { createReadStream, statSync } from "node:fs";
 import path from "node:path";
 import { URL } from "node:url";
-
-const require = createRequire(import.meta.url);
-const CloudBase = require("@cloudbase/manager-node");
 
 function readEnv(name, fallback = "") {
   return process.env[name] || fallback;
@@ -41,11 +38,8 @@ function joinUrl(...parts) {
 }
 
 const token = readEnv("TCB_TOKEN", readEnv("CLOUDBASE_API_KEY"));
-const secretId = readEnv("TCB_SECRET_ID", readEnv("TENCENTCLOUD_SECRET_ID"));
-const secretKey = readEnv("TCB_SECRET_KEY", readEnv("TENCENTCLOUD_SECRET_KEY"));
-
-if (!token && (!secretId || !secretKey)) {
-  throw new Error("TCB_TOKEN / CLOUDBASE_API_KEY 或 TCB_SECRET_ID + TCB_SECRET_KEY 未配置。");
+if (!token) {
+  throw new Error("TCB_TOKEN / CLOUDBASE_API_KEY 未配置。");
 }
 
 const envId = requireEnv(["TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV"]);
@@ -57,14 +51,6 @@ const sourceDir = readEnv("SIMC_WASM_DIST_DIR", "labs/simc-wasm/public/dist");
 const prefix = normalizePrefix(readEnv("TCB_WASM_CLOUD_PREFIX", "simc-dist"));
 const simcSha = requireEnv(["SIMC_SHA", "GITHUB_SHA"]);
 const version = readEnv("SIMC_VERSION", simcSha.slice(0, 12));
-
-const app = CloudBase.init({
-  secretId,
-  secretKey,
-  token,
-  envId,
-  region,
-});
 
 const files = [
   {
@@ -98,36 +84,42 @@ const uploadFiles = targets.flatMap((target) =>
 );
 
 console.log(`Uploading ${uploadFiles.length} files to CloudBase env ${envId}...`);
-if (token) {
-  for (const file of uploadFiles) {
-    await app.storage.uploadObject({
-      accessToken: token,
-      bucketId,
-      envId,
-      objectName: file.cloudPath,
-      localPath: file.localPath,
-      contentType: file.contentType,
-      cacheControl: file.cacheControl,
-      usePut: true,
-    });
-    console.log(`Uploaded: ${file.cloudPath}`);
-  }
-} else {
-  await app.storage.uploadFiles({
-    files: uploadFiles,
-    parallel: 3,
-    retryCount: 2,
-    retryInterval: 1000,
-    onFileFinish(error, _res, fileData) {
-      if (error) {
-        console.error(`Upload failed: ${fileData?.cloudFileKey || fileData?.cloudPath || "unknown"}`);
-        console.error(error);
-        return;
-      }
 
-      console.log(`Uploaded: ${fileData?.cloudFileKey || fileData?.cloudPath || "unknown"}`);
+for (const file of uploadFiles) {
+  const encodedBucketId = encodeURIComponent(bucketId);
+  const encodedObjectName = file.cloudPath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+  const url = `https://${envId}.api.tcloudbasegateway.com/v1/storages/object/${encodedBucketId}/${encodedObjectName}`;
+  const stat = statSync(file.localPath);
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": file.contentType,
+      "Content-Length": String(stat.size),
+      "Cache-Control": file.cacheControl,
     },
+    body: createReadStream(file.localPath),
+    duplex: "half",
   });
+
+  const text = await response.text();
+  let payload = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      payload = text;
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(`上传失败 ${response.status} ${response.statusText}: ${JSON.stringify(payload)}`);
+  }
+
+  console.log(`Uploaded: ${file.cloudPath}`);
 }
 
 const currentBaseUrl = joinUrl(publicBaseUrl, prefix, "current");

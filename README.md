@@ -114,14 +114,9 @@ TCB_STORAGE_BUCKET_ID=你的存储 bucket id
 
 # Secrets
 TCB_TOKEN=CloudBase API Key
-
-# 或使用腾讯云永久密钥
-TCB_SECRET_ID=腾讯云 SecretId
-TCB_SECRET_KEY=腾讯云 SecretKey
 ```
 
-如果没有配置 `TCB_TOKEN` 或 `TCB_SECRET_ID + TCB_SECRET_KEY`，或缺少
-`TCB_STORAGE_PUBLIC_BASE_URL`，
+如果没有配置 `TCB_TOKEN` 或 `TCB_STORAGE_PUBLIC_BASE_URL`，
 workflow 会跳过上传并继续使用 Cloudflare Pages 内置的 `/simc-dist` 资源。
 
 ## CloudBase 身份认证（开发环境）

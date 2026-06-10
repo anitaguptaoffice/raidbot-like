@@ -109,8 +109,6 @@ jobs:
         id: cloudbase_upload
         env:
           TCB_TOKEN: ${{ secrets.TCB_TOKEN || secrets.CLOUDBASE_API_KEY }}
-          TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID || secrets.TENCENTCLOUD_SECRET_ID }}
-          TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY || secrets.TENCENTCLOUD_SECRET_KEY }}
           TCB_ENV_ID: ${{ vars.NEXT_PUBLIC_TCB_ENV_ID || secrets.NEXT_PUBLIC_TCB_ENV_ID || vars.NEXT_PUBLIC_TCB_ENV || secrets.NEXT_PUBLIC_TCB_ENV }}
           TCB_REGION: ${{ vars.NEXT_PUBLIC_TCB_REGION || secrets.NEXT_PUBLIC_TCB_REGION || 'ap-shanghai' }}
           TCB_STORAGE_PUBLIC_BASE_URL: ${{ vars.TCB_STORAGE_PUBLIC_BASE_URL || secrets.TCB_STORAGE_PUBLIC_BASE_URL }}
@@ -119,8 +117,8 @@ jobs:
           SIMC_VERSION: ${{ steps.simc.outputs.short_sha }}
         run: |
           set -euo pipefail
-          if [[ -z "${TCB_STORAGE_PUBLIC_BASE_URL:-}" || ( -z "${TCB_TOKEN:-}" && ( -z "${TCB_SECRET_ID:-}" || -z "${TCB_SECRET_KEY:-}" ) ) ]]; then
-            echo "CloudBase storage upload skipped. Configure TCB_TOKEN or TCB_SECRET_ID+TCB_SECRET_KEY, plus TCB_STORAGE_PUBLIC_BASE_URL to enable it."
+          if [[ -z "${TCB_TOKEN:-}" || -z "${TCB_STORAGE_PUBLIC_BASE_URL:-}" ]]; then
+            echo "CloudBase storage upload skipped. Configure TCB_TOKEN and TCB_STORAGE_PUBLIC_BASE_URL to enable it."
             echo "uploaded=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
