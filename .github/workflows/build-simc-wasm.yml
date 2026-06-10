@@ -18,7 +18,70 @@ permissions:
   contents: write
 
 jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    env:
+      SIMC_BRANCH: ${{ github.event.inputs.simc_branch || 'midnight' }}
+      SIMC_REPO: https://github.com/simulationcraft/simc.git
+
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v4
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Check required static build env
+        env:
+          NEXT_PUBLIC_TCB_ENV_ID: ${{ vars.NEXT_PUBLIC_TCB_ENV_ID || secrets.NEXT_PUBLIC_TCB_ENV_ID }}
+          NEXT_PUBLIC_TCB_ENV: ${{ vars.NEXT_PUBLIC_TCB_ENV || secrets.NEXT_PUBLIC_TCB_ENV }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${NEXT_PUBLIC_TCB_ENV_ID:-}" && -z "${NEXT_PUBLIC_TCB_ENV:-}" ]]; then
+            echo "NEXT_PUBLIC_TCB_ENV_ID / NEXT_PUBLIC_TCB_ENV is required. Configure it in GitHub Actions Variables or Secrets." >&2
+            exit 1
+          fi
+
+      - name: Resolve SimulationCraft commit
+        id: simc
+        run: |
+          set -euo pipefail
+          git ls-remote "$SIMC_REPO" "refs/heads/$SIMC_BRANCH" > /tmp/simc-ref.txt
+          SIMC_SHA="$(cut -f1 /tmp/simc-ref.txt)"
+          if [ -z "$SIMC_SHA" ]; then
+            echo "Unable to resolve SimulationCraft branch: $SIMC_BRANCH" >&2
+            exit 1
+          fi
+          echo "sha=$SIMC_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SIMC_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Check CloudBase storage upload
+        env:
+          TCB_TOKEN: ${{ secrets.TCB_TOKEN || secrets.CLOUDBASE_API_KEY }}
+          TCB_ENV_ID: ${{ vars.NEXT_PUBLIC_TCB_ENV_ID || secrets.NEXT_PUBLIC_TCB_ENV_ID || vars.NEXT_PUBLIC_TCB_ENV || secrets.NEXT_PUBLIC_TCB_ENV }}
+          TCB_REGION: ${{ vars.NEXT_PUBLIC_TCB_REGION || secrets.NEXT_PUBLIC_TCB_REGION || 'ap-shanghai' }}
+          TCB_STORAGE_PUBLIC_BASE_URL: ${{ vars.TCB_STORAGE_PUBLIC_BASE_URL || secrets.TCB_STORAGE_PUBLIC_BASE_URL }}
+          TCB_WASM_CLOUD_PREFIX: ${{ vars.TCB_WASM_CLOUD_PREFIX || 'simc-dist' }}
+          SIMC_SHA: ${{ steps.simc.outputs.sha }}
+          SIMC_VERSION: ${{ steps.simc.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TCB_TOKEN:-}" || -z "${TCB_STORAGE_PUBLIC_BASE_URL:-}" ]]; then
+            echo "CloudBase storage upload skipped. Configure TCB_TOKEN and TCB_STORAGE_PUBLIC_BASE_URL to enable it."
+            exit 0
+          fi
+
+          npm run upload:simc-wasm:cloudbase -- --preflight
+
+      - name: Build static app
+        env:
+          NEXT_PUBLIC_TCB_ENV_ID: ${{ vars.NEXT_PUBLIC_TCB_ENV_ID || secrets.NEXT_PUBLIC_TCB_ENV_ID }}
+          NEXT_PUBLIC_TCB_ENV: ${{ vars.NEXT_PUBLIC_TCB_ENV || secrets.NEXT_PUBLIC_TCB_ENV }}
+          NEXT_PUBLIC_TCB_REGION: ${{ vars.NEXT_PUBLIC_TCB_REGION || secrets.NEXT_PUBLIC_TCB_REGION || 'ap-shanghai' }}
+        run: npm run build
+
   build:
+    needs: preflight
     runs-on: ubuntu-latest
     env:
       SIMC_BRANCH: ${{ github.event.inputs.simc_branch || 'midnight' }}

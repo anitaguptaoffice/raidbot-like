@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, mkdirSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { URL } from "node:url";
 
@@ -42,15 +43,36 @@ if (!token) {
   throw new Error("TCB_TOKEN / CLOUDBASE_API_KEY 未配置。");
 }
 
+const preflight = process.argv.includes("--preflight");
 const envId = requireEnv(["TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV"]);
 const region = readEnv("TCB_REGION", readEnv("NEXT_PUBLIC_TCB_REGION", "ap-shanghai"));
 const publicBaseUrl = requireEnv(["TCB_STORAGE_PUBLIC_BASE_URL", "NEXT_PUBLIC_SIMC_WASM_PUBLIC_BASE_URL"]);
 const bucketId =
   readEnv("TCB_STORAGE_BUCKET_ID") || new URL(publicBaseUrl).hostname.replace(/\.tcb\.qcloud\.la$/i, "");
-const sourceDir = readEnv("SIMC_WASM_DIST_DIR", "labs/simc-wasm/public/dist");
+const sourceDir = preflight
+  ? path.join(tmpdir(), "raidbot-like-simc-upload-preflight")
+  : readEnv("SIMC_WASM_DIST_DIR", "labs/simc-wasm/public/dist");
 const prefix = normalizePrefix(readEnv("TCB_WASM_CLOUD_PREFIX", "simc-dist"));
 const simcSha = requireEnv(["SIMC_SHA", "GITHUB_SHA"]);
-const version = readEnv("SIMC_VERSION", simcSha.slice(0, 12));
+const version = preflight ? "preflight" : readEnv("SIMC_VERSION", simcSha.slice(0, 12));
+
+if (preflight) {
+  mkdirSync(sourceDir, { recursive: true });
+  writeFileSync(path.join(sourceDir, "simc.js"), "export default function createSimcModule() { return {}; }\n");
+  writeFileSync(path.join(sourceDir, "simc.wasm.gz"), Buffer.from([0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00]));
+  writeFileSync(
+    path.join(sourceDir, "manifest.json"),
+    `${JSON.stringify(
+      {
+        preflight: true,
+        simcSha,
+        builtAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
 
 const files = [
   {
@@ -73,7 +95,7 @@ const files = [
   },
 ];
 
-const targets = ["current", `versions/${version}`];
+const targets = preflight ? ["preflight"] : ["current", `versions/${version}`];
 const uploadFiles = targets.flatMap((target) =>
   files.map((file) => ({
     localPath: file.localPath,
