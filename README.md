@@ -109,6 +109,8 @@ NEXT_PUBLIC_TCB_ENV_ID=你的环境ID
 NEXT_PUBLIC_TCB_REGION=ap-shanghai
 TCB_STORAGE_PUBLIC_BASE_URL=https://你的文件下载域名
 TCB_WASM_CLOUD_PREFIX=simc-dist
+# 可选；默认会从 *.tcb.qcloud.la 域名推断
+TCB_STORAGE_BUCKET_ID=你的存储 bucket id
 
 # Secrets
 TCB_TOKEN=CloudBase API Key
