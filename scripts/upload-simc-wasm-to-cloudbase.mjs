@@ -3,7 +3,6 @@
 import { createReadStream, mkdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { URL } from "node:url";
 
 function readEnv(name, fallback = "") {
   return process.env[name] || fallback;
@@ -47,8 +46,6 @@ const preflight = process.argv.includes("--preflight");
 const envId = requireEnv(["TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV"]);
 const region = readEnv("TCB_REGION", readEnv("NEXT_PUBLIC_TCB_REGION", "ap-shanghai"));
 const publicBaseUrl = requireEnv(["TCB_STORAGE_PUBLIC_BASE_URL", "NEXT_PUBLIC_SIMC_WASM_PUBLIC_BASE_URL"]);
-const bucketId =
-  readEnv("TCB_STORAGE_BUCKET_ID") || new URL(publicBaseUrl).hostname.replace(/\.tcb\.qcloud\.la$/i, "");
 const sourceDir = preflight
   ? path.join(tmpdir(), "raidbot-like-simc-upload-preflight")
   : readEnv("SIMC_WASM_DIST_DIR", "labs/simc-wasm/public/dist");
@@ -108,20 +105,52 @@ const uploadFiles = targets.flatMap((target) =>
 console.log(`Uploading ${uploadFiles.length} files to CloudBase env ${envId}...`);
 
 for (const file of uploadFiles) {
-  const encodedBucketId = encodeURIComponent(bucketId);
-  const encodedObjectName = file.cloudPath
-    .split("/")
-    .map((segment) => encodeURIComponent(segment))
-    .join("/");
-  const url = `https://${envId}.api.tcloudbasegateway.com/v1/storages/object/${encodedBucketId}/${encodedObjectName}`;
+  const metadataResponse = await fetch(
+    `https://${envId}.api.tcloudbasegateway.com/v1/storages/get-objects-upload-info`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify([
+        {
+          objectId: file.cloudPath,
+        },
+      ]),
+    },
+  );
+  const metadataText = await metadataResponse.text();
+  let metadataPayload = null;
+  if (metadataText) {
+    try {
+      metadataPayload = JSON.parse(metadataText);
+    } catch {
+      metadataPayload = metadataText;
+    }
+  }
+
+  if (!metadataResponse.ok) {
+    throw new Error(
+      `获取上传信息失败 ${metadataResponse.status} ${metadataResponse.statusText}: ${JSON.stringify(metadataPayload)}`,
+    );
+  }
+
+  const metadata = Array.isArray(metadataPayload) ? metadataPayload[0] : null;
+  if (!metadata || metadata.code || !metadata.uploadUrl || !metadata.authorization || !metadata.token) {
+    throw new Error(`获取上传信息失败：${JSON.stringify(metadataPayload)}`);
+  }
+
   const stat = statSync(file.localPath);
-  const response = await fetch(url, {
+  const response = await fetch(metadata.uploadUrl, {
     method: "PUT",
     headers: {
-      Authorization: `Bearer ${token}`,
+      Authorization: metadata.authorization,
+      "X-Cos-Security-Token": metadata.token,
       "Content-Type": file.contentType,
       "Content-Length": String(stat.size),
       "Cache-Control": file.cacheControl,
+      ...(metadata.cloudObjectMeta ? { "X-Cos-Meta-Fileid": metadata.cloudObjectMeta } : {}),
     },
     body: createReadStream(file.localPath),
     duplex: "half",
