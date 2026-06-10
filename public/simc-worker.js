@@ -37,12 +37,56 @@ function pushLog(text) {
   }
 }
 
+async function readResponseBytes(response) {
+  if (!response.ok) {
+    throw new Error(`请求失败：${response.status} ${response.statusText}`);
+  }
+
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+async function loadGzipWasmBinary(url) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`请求失败：${response.status} ${response.statusText}`);
+  }
+
+  if (!("DecompressionStream" in self)) {
+    throw new Error("当前浏览器不支持 DecompressionStream，无法解压 simc.wasm.gz。");
+  }
+
+  const body = response.body;
+  if (!body) {
+    throw new Error("浏览器没有返回可读取的 WASM 压缩数据。");
+  }
+
+  const decompressed = body.pipeThrough(new DecompressionStream("gzip"));
+  return new Uint8Array(await new Response(decompressed).arrayBuffer());
+}
+
+async function loadWasmBinary(normalizedBase) {
+  try {
+    postStatus("下载压缩 WASM", 9);
+    return await loadGzipWasmBinary(`${normalizedBase}/simc.wasm.gz`);
+  } catch (gzipError) {
+    pushLog(`压缩 WASM 不可用，回退原始 WASM：${gzipError instanceof Error ? gzipError.message : String(gzipError)}`);
+  }
+
+  postStatus("下载 WASM", 9);
+  const response = await fetch(`${normalizedBase}/simc.wasm`);
+  return readResponseBytes(response);
+}
+
 async function getModule(assetBaseUrl) {
   if (!modulePromise) {
     const normalizedBase = assetBaseUrl.replace(/\/$/, "");
-    const simcModule = await import(`${normalizedBase}/simc.js`);
+    const [simcModule, wasmBinary] = await Promise.all([
+      import(`${normalizedBase}/simc.js`),
+      loadWasmBinary(normalizedBase),
+    ]);
 
     modulePromise = simcModule.default({
+      wasmBinary,
       locateFile(path) {
         if (path.endsWith(".wasm")) {
           return `${normalizedBase}/${path}`;

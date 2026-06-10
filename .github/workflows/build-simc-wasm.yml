@@ -7,6 +7,10 @@ on:
         description: "SimulationCraft branch to build"
         required: false
         default: "midnight"
+      force_rebuild:
+        description: "Rebuild and redeploy even if the release already exists"
+        required: false
+        default: "false"
   schedule:
     - cron: "17 3 * * *"
 
@@ -51,32 +55,32 @@ jobs:
           fi
 
       - name: Stop if release already exists
-        if: steps.release_check.outputs.exists == 'true'
+        if: steps.release_check.outputs.exists == 'true' && github.event.inputs.force_rebuild != 'true'
         run: |
           echo "Release simc-wasm-pthreads-${{ steps.simc.outputs.short_sha }} already exists. Nothing to build."
 
       - name: Clone SimulationCraft
-        if: steps.release_check.outputs.exists != 'true'
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
         run: |
           set -euo pipefail
           mkdir -p .tools
           git clone --depth 1 --branch "$SIMC_BRANCH" "$SIMC_REPO" .tools/simc-src
 
       - name: Setup Emscripten
-        if: steps.release_check.outputs.exists != 'true'
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
         uses: mymindstorm/setup-emsdk@v14
         with:
           version: latest
 
       - name: Build WASM
-        if: steps.release_check.outputs.exists != 'true'
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
         env:
           SIMC_WASM_BUILD_JOBS: 4
           SIMC_WASM_PTHREADS: 1
         run: ./labs/simc-wasm/build.sh
 
       - name: Write manifest
-        if: steps.release_check.outputs.exists != 'true'
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
         env:
           TAG: simc-wasm-pthreads-${{ steps.simc.outputs.short_sha }}
           SIMC_SHA: ${{ steps.simc.outputs.sha }}
@@ -89,19 +93,46 @@ jobs:
             "pthreads": true,
             "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "assets": {
-              "js": "https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/simc.js",
-              "wasm": "https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/simc.wasm",
-              "wasmGzip": "https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/simc.wasm.gz"
+              "js": "simc.js",
+              "wasm": "simc.wasm",
+              "wasmGzip": "simc.wasm.gz"
             }
           }
           EOF
 
       - name: Install app dependencies
-        if: steps.release_check.outputs.exists != 'true'
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
         run: npm ci
 
+      - name: Upload WASM assets to CloudBase storage
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
+        id: cloudbase_upload
+        env:
+          TCB_SECRET_ID: ${{ secrets.TCB_SECRET_ID || secrets.TENCENTCLOUD_SECRET_ID }}
+          TCB_SECRET_KEY: ${{ secrets.TCB_SECRET_KEY || secrets.TENCENTCLOUD_SECRET_KEY }}
+          TCB_ENV_ID: ${{ vars.NEXT_PUBLIC_TCB_ENV_ID || secrets.NEXT_PUBLIC_TCB_ENV_ID || vars.NEXT_PUBLIC_TCB_ENV || secrets.NEXT_PUBLIC_TCB_ENV }}
+          TCB_REGION: ${{ vars.NEXT_PUBLIC_TCB_REGION || secrets.NEXT_PUBLIC_TCB_REGION || 'ap-shanghai' }}
+          TCB_STORAGE_PUBLIC_BASE_URL: ${{ vars.TCB_STORAGE_PUBLIC_BASE_URL || secrets.TCB_STORAGE_PUBLIC_BASE_URL }}
+          TCB_WASM_CLOUD_PREFIX: ${{ vars.TCB_WASM_CLOUD_PREFIX || 'simc-dist' }}
+          SIMC_SHA: ${{ steps.simc.outputs.sha }}
+          SIMC_VERSION: ${{ steps.simc.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${TCB_SECRET_ID:-}" || -z "${TCB_SECRET_KEY:-}" || -z "${TCB_STORAGE_PUBLIC_BASE_URL:-}" ]]; then
+            echo "CloudBase storage upload skipped. Configure TCB_SECRET_ID, TCB_SECRET_KEY, and TCB_STORAGE_PUBLIC_BASE_URL to enable it."
+            echo "uploaded=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          npm run upload:simc-wasm:cloudbase
+          NORMALIZED_PREFIX="${TCB_WASM_CLOUD_PREFIX#/}"
+          NORMALIZED_PREFIX="${NORMALIZED_PREFIX%/}"
+          CURRENT_BASE_URL="${TCB_STORAGE_PUBLIC_BASE_URL%/}/${NORMALIZED_PREFIX}/current"
+          echo "NEXT_PUBLIC_SIMC_WASM_BASE_URL=$CURRENT_BASE_URL" >> "$GITHUB_ENV"
+          echo "uploaded=true" >> "$GITHUB_OUTPUT"
+
       - name: Install WASM assets into app
-        if: steps.release_check.outputs.exists != 'true'
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
         run: |
           set -euo pipefail
           mkdir -p public/simc-dist
@@ -110,7 +141,7 @@ jobs:
           cp labs/simc-wasm/public/dist/manifest.json public/simc-dist/manifest.json
 
       - name: Build static app
-        if: steps.release_check.outputs.exists != 'true'
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
         env:
           NEXT_PUBLIC_TCB_ENV_ID: ${{ vars.NEXT_PUBLIC_TCB_ENV_ID || secrets.NEXT_PUBLIC_TCB_ENV_ID }}
           NEXT_PUBLIC_TCB_ENV: ${{ vars.NEXT_PUBLIC_TCB_ENV || secrets.NEXT_PUBLIC_TCB_ENV }}
@@ -124,7 +155,7 @@ jobs:
           npm run build
 
       - name: Deploy static app to cf-pages branch
-        if: steps.release_check.outputs.exists != 'true'
+        if: steps.release_check.outputs.exists != 'true' || github.event.inputs.force_rebuild == 'true'
         env:
           TAG: simc-wasm-pthreads-${{ steps.simc.outputs.short_sha }}
           GITHUB_TOKEN: ${{ github.token }}

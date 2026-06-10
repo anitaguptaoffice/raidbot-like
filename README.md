@@ -92,7 +92,31 @@ NEXT_PUBLIC_SIMC_WASM_BASE_URL=https://example.com/simc-wasm
 - `simc.js`
 - `simc.wasm`
 
-生产建议由 GitHub Actions 编译后发布到 GitHub Releases，再把 `NEXT_PUBLIC_SIMC_WASM_BASE_URL` 指向对应 release 资产目录或 CDN 镜像。
+生产建议由 GitHub Actions 编译后上传到 CloudBase 文件存储或国内 CDN，再把
+`NEXT_PUBLIC_SIMC_WASM_BASE_URL` 指向对应资源目录。当前 workflow 支持把
+`simc.js`、`simc.wasm.gz` 和 `manifest.json` 上传到：
+
+```text
+simc-dist/current/
+simc-dist/versions/<simcSha>/
+```
+
+需要在 GitHub Actions 配置：
+
+```bash
+# Variables
+NEXT_PUBLIC_TCB_ENV_ID=你的环境ID
+NEXT_PUBLIC_TCB_REGION=ap-shanghai
+TCB_STORAGE_PUBLIC_BASE_URL=https://你的文件下载域名
+TCB_WASM_CLOUD_PREFIX=simc-dist
+
+# Secrets
+TCB_SECRET_ID=腾讯云 SecretId
+TCB_SECRET_KEY=腾讯云 SecretKey
+```
+
+如果没有配置 `TCB_SECRET_ID`、`TCB_SECRET_KEY` 或 `TCB_STORAGE_PUBLIC_BASE_URL`，
+workflow 会跳过上传并继续使用 Cloudflare Pages 内置的 `/simc-dist` 资源。
 
 ## CloudBase 身份认证（开发环境）
 
