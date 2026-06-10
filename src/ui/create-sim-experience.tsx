@@ -380,7 +380,7 @@ export function CreateSimExperience() {
               });
 
               startTransition(() => {
-                router.push(`/sims/${localJobId}`);
+                router.push(`/sims?jobId=${encodeURIComponent(localJobId)}`);
               });
             } catch (submitError) {
               setError(
@@ -508,7 +508,7 @@ export function CreateSimExperience() {
               });
 
               startTransition(() => {
-                router.push(`/sims/${localJobId}`);
+                router.push(`/sims?jobId=${encodeURIComponent(localJobId)}`);
               });
             } catch (submitError) {
               setError(
@@ -574,7 +574,7 @@ export function CreateSimExperience() {
           ) : (
             <div className="history-list">
               {historyItems.map((item) => (
-                <Link className="history-item" href={`/sims/${item.jobId}`} key={item.jobId}>
+                <Link className="history-item" href={`/sims?jobId=${encodeURIComponent(item.jobId)}`} key={item.jobId}>
                   <div className="history-item-main">
                     <strong>{formatFightStyle(item.fightStyle)}</strong>
                     <span className="muted">

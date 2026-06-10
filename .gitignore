@@ -22,6 +22,7 @@ public/simc-dist/*
 
 # Local scratch/data files
 .playwright-cli/
+out/
 2awfeaa
 test
 ItemSparse.*.csv

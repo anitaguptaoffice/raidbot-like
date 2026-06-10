@@ -19,7 +19,7 @@ talents=
   await page.getByLabel("High Precision").uncheck();
   await page.getByRole("button", { name: /开始模拟/i }).click();
 
-  await expect(page).toHaveURL(/\/sims\/local_/, {
+  await expect(page).toHaveURL(/\/sims\?jobId=local_/, {
     timeout: 180000,
   });
   await expect(page.getByText(/任务状态/i)).toBeVisible({

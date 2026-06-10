@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { getLocalSimHistory, saveLocalSimHistory } from "@/lib/local-sim-history";
 import { mapLocalHistoryToSimResponse } from "@/lib/local-sim-response";
@@ -12,8 +12,10 @@ import type { SimJobResponse } from "@/shared/sim-api";
 import { normalizeSimulationOptions } from "@/shared/sim-types";
 import { SimResultPanel } from "@/ui/sim-result";
 
-export function SimResultExperience({ jobId }: { jobId: string }) {
+export function SimResultExperience() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const jobId = searchParams.get("jobId") ?? "";
   const [sim, setSim] = useState<SimJobResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -25,6 +27,10 @@ export function SimResultExperience({ jobId }: { jobId: string }) {
 
     const load = async () => {
       try {
+        if (!jobId) {
+          throw new Error("缺少本地模拟任务 ID。");
+        }
+
         const record = await getLocalSimHistory(jobId);
         if (!record) {
           throw new Error("本地模拟记录不存在。");
@@ -100,7 +106,7 @@ export function SimResultExperience({ jobId }: { jobId: string }) {
                 resultJson: result.resultJson,
               });
 
-              router.push(`/sims/${localJobId}`);
+              router.push(`/sims?jobId=${encodeURIComponent(localJobId)}`);
             } catch (retryError) {
               setError(
                 retryError instanceof Error
