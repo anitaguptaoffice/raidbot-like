@@ -39,8 +39,14 @@ function joinUrl(...parts) {
     .join("/");
 }
 
-const secretId = requireEnv(["TCB_SECRET_ID", "TENCENTCLOUD_SECRET_ID"]);
-const secretKey = requireEnv(["TCB_SECRET_KEY", "TENCENTCLOUD_SECRET_KEY"]);
+const token = readEnv("TCB_TOKEN", readEnv("CLOUDBASE_API_KEY"));
+const secretId = readEnv("TCB_SECRET_ID", readEnv("TENCENTCLOUD_SECRET_ID"));
+const secretKey = readEnv("TCB_SECRET_KEY", readEnv("TENCENTCLOUD_SECRET_KEY"));
+
+if (!token && (!secretId || !secretKey)) {
+  throw new Error("TCB_TOKEN / CLOUDBASE_API_KEY 或 TCB_SECRET_ID + TCB_SECRET_KEY 未配置。");
+}
+
 const envId = requireEnv(["TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV_ID", "NEXT_PUBLIC_TCB_ENV"]);
 const region = readEnv("TCB_REGION", readEnv("NEXT_PUBLIC_TCB_REGION", "ap-shanghai"));
 const publicBaseUrl = requireEnv(["TCB_STORAGE_PUBLIC_BASE_URL", "NEXT_PUBLIC_SIMC_WASM_PUBLIC_BASE_URL"]);
@@ -52,6 +58,7 @@ const version = readEnv("SIMC_VERSION", simcSha.slice(0, 12));
 const app = CloudBase.init({
   secretId,
   secretKey,
+  token,
   envId,
   region,
 });
@@ -98,4 +105,3 @@ await app.storage.uploadFiles({
 
 const currentBaseUrl = joinUrl(publicBaseUrl, prefix, "current");
 console.log(`SIMC_WASM_PUBLIC_BASE_URL=${currentBaseUrl}`);
-
