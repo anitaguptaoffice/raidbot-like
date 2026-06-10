@@ -41,7 +41,7 @@ jobs:
         id: release_check
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: simc-wasm-${{ steps.simc.outputs.short_sha }}
+          TAG: simc-wasm-pthreads-${{ steps.simc.outputs.short_sha }}
         run: |
           set -euo pipefail
           if gh release view "$TAG" >/dev/null 2>&1; then
@@ -53,7 +53,7 @@ jobs:
       - name: Stop if release already exists
         if: steps.release_check.outputs.exists == 'true'
         run: |
-          echo "Release simc-wasm-${{ steps.simc.outputs.short_sha }} already exists. Nothing to build."
+          echo "Release simc-wasm-pthreads-${{ steps.simc.outputs.short_sha }} already exists. Nothing to build."
 
       - name: Clone SimulationCraft
         if: steps.release_check.outputs.exists != 'true'
@@ -72,12 +72,13 @@ jobs:
         if: steps.release_check.outputs.exists != 'true'
         env:
           SIMC_WASM_BUILD_JOBS: 4
+          SIMC_WASM_PTHREADS: 1
         run: ./labs/simc-wasm/build.sh
 
       - name: Write manifest
         if: steps.release_check.outputs.exists != 'true'
         env:
-          TAG: simc-wasm-${{ steps.simc.outputs.short_sha }}
+          TAG: simc-wasm-pthreads-${{ steps.simc.outputs.short_sha }}
           SIMC_SHA: ${{ steps.simc.outputs.sha }}
         run: |
           set -euo pipefail
@@ -85,6 +86,7 @@ jobs:
           {
             "simcBranch": "$SIMC_BRANCH",
             "simcSha": "$SIMC_SHA",
+            "pthreads": true,
             "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
             "assets": {
               "js": "https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/simc.js",
@@ -94,20 +96,53 @@ jobs:
           }
           EOF
 
+      - name: Install app dependencies
+        if: steps.release_check.outputs.exists != 'true'
+        run: npm ci
+
+      - name: Install WASM assets into app
+        if: steps.release_check.outputs.exists != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p public/simc-dist
+          cp labs/simc-wasm/public/dist/simc.js public/simc-dist/simc.js
+          cp labs/simc-wasm/public/dist/simc.wasm.gz public/simc-dist/simc.wasm
+          cp labs/simc-wasm/public/dist/manifest.json public/simc-dist/manifest.json
+
+      - name: Build static app
+        if: steps.release_check.outputs.exists != 'true'
+        run: npm run build
+
+      - name: Deploy static app to cf-pages branch
+        if: steps.release_check.outputs.exists != 'true'
+        env:
+          TAG: simc-wasm-pthreads-${{ steps.simc.outputs.short_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd out
+          git init
+          git checkout -b cf-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "deploy: $TAG"
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin cf-pages
+
       - name: Publish release
         if: steps.release_check.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: simc-wasm-${{ steps.simc.outputs.short_sha }}
+          TAG: simc-wasm-pthreads-${{ steps.simc.outputs.short_sha }}
           SIMC_SHA: ${{ steps.simc.outputs.sha }}
         run: |
           set -euo pipefail
           gh release create "$TAG" \
-            --title "SimulationCraft WASM ${{ steps.simc.outputs.short_sha }}" \
+            --title "SimulationCraft pthreads WASM ${{ steps.simc.outputs.short_sha }}" \
             --notes "SimulationCraft branch: $SIMC_BRANCH
           SimulationCraft commit: $SIMC_SHA" \
             labs/simc-wasm/public/dist/simc.js \
             labs/simc-wasm/public/dist/simc.wasm \
             labs/simc-wasm/public/dist/simc.wasm.gz \
             labs/simc-wasm/public/dist/manifest.json
-
