@@ -110,7 +110,7 @@ for (const file of uploadFiles) {
     {
       method: "POST",
       headers: {
-        Authorization: token,
+        Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify([
