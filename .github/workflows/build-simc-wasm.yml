@@ -1,0 +1,113 @@
+name: Build SimulationCraft WASM
+
+on:
+  workflow_dispatch:
+    inputs:
+      simc_branch:
+        description: "SimulationCraft branch to build"
+        required: false
+        default: "midnight"
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      SIMC_BRANCH: ${{ github.event.inputs.simc_branch || 'midnight' }}
+      SIMC_REPO: https://github.com/simulationcraft/simc.git
+
+    steps:
+      - name: Checkout app
+        uses: actions/checkout@v4
+
+      - name: Resolve SimulationCraft commit
+        id: simc
+        run: |
+          set -euo pipefail
+          git ls-remote "$SIMC_REPO" "refs/heads/$SIMC_BRANCH" > /tmp/simc-ref.txt
+          SIMC_SHA="$(cut -f1 /tmp/simc-ref.txt)"
+          if [ -z "$SIMC_SHA" ]; then
+            echo "Unable to resolve SimulationCraft branch: $SIMC_BRANCH" >&2
+            exit 1
+          fi
+          echo "sha=$SIMC_SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SIMC_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Check existing release
+        id: release_check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: simc-wasm-${{ steps.simc.outputs.short_sha }}
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop if release already exists
+        if: steps.release_check.outputs.exists == 'true'
+        run: |
+          echo "Release simc-wasm-${{ steps.simc.outputs.short_sha }} already exists. Nothing to build."
+
+      - name: Clone SimulationCraft
+        if: steps.release_check.outputs.exists != 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p .tools
+          git clone --depth 1 --branch "$SIMC_BRANCH" "$SIMC_REPO" .tools/simc-src
+
+      - name: Setup Emscripten
+        if: steps.release_check.outputs.exists != 'true'
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: latest
+
+      - name: Build WASM
+        if: steps.release_check.outputs.exists != 'true'
+        env:
+          SIMC_WASM_BUILD_JOBS: 4
+        run: ./labs/simc-wasm/build.sh
+
+      - name: Write manifest
+        if: steps.release_check.outputs.exists != 'true'
+        env:
+          TAG: simc-wasm-${{ steps.simc.outputs.short_sha }}
+          SIMC_SHA: ${{ steps.simc.outputs.sha }}
+        run: |
+          set -euo pipefail
+          cat > labs/simc-wasm/public/dist/manifest.json <<EOF
+          {
+            "simcBranch": "$SIMC_BRANCH",
+            "simcSha": "$SIMC_SHA",
+            "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "assets": {
+              "js": "https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/simc.js",
+              "wasm": "https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/simc.wasm",
+              "wasmGzip": "https://github.com/${GITHUB_REPOSITORY}/releases/download/$TAG/simc.wasm.gz"
+            }
+          }
+          EOF
+
+      - name: Publish release
+        if: steps.release_check.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: simc-wasm-${{ steps.simc.outputs.short_sha }}
+          SIMC_SHA: ${{ steps.simc.outputs.sha }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --title "SimulationCraft WASM ${{ steps.simc.outputs.short_sha }}" \
+            --notes "SimulationCraft branch: $SIMC_BRANCH
+          SimulationCraft commit: $SIMC_SHA" \
+            labs/simc-wasm/public/dist/simc.js \
+            labs/simc-wasm/public/dist/simc.wasm \
+            labs/simc-wasm/public/dist/simc.wasm.gz \
+            labs/simc-wasm/public/dist/manifest.json
+

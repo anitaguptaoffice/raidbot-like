@@ -3,17 +3,21 @@
 import React from "react";
 import { useState } from "react";
 
+import { extractLocalTopGearCandidates } from "@/lib/local-top-gear";
+import type { TopGearCandidate } from "@/shared/sim-api";
 import {
   FIGHT_LENGTH_OPTIONS,
   FIGHT_STYLE_OPTIONS,
   type FightStyle,
 } from "@/shared/sim-types";
 
-type DpsFormProps = {
+type TopGearFormProps = {
   onSubmit: (payload: {
     simcProfile: string;
     fightStyle: FightStyle;
     numEnemies: number;
+    comboLimit: number;
+    selectedTrinkets: string[];
     simulationOptions: {
       fightLengthSeconds: number;
       highPrecision: boolean;
@@ -25,16 +29,15 @@ type DpsFormProps = {
   disabled?: boolean;
 };
 
-const FIGHT_STYLE_DETAILS: Record<FightStyle, string> = {
-  patchwerk: "标准木桩单体，适合先看基础输出。",
-  dungeon_slice: "6 分钟大秘境切片，适合看更接近实战的整体表现。",
-  target_dummy: "训练假人风格场景，适合快速做稳定基线对比。",
-};
-
-export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps) {
+export function TopGearForm({
+  onSubmit,
+  isPending,
+  disabled = false,
+}: TopGearFormProps) {
   const [simcProfile, setSimcProfile] = useState("");
   const [fightStyle, setFightStyle] = useState<FightStyle>("patchwerk");
   const [numEnemies, setNumEnemies] = useState("1");
+  const [comboLimit, setComboLimit] = useState("20");
   const [fightLengthSeconds, setFightLengthSeconds] = useState("300");
   const [threadCount, setThreadCount] = useState(() =>
     typeof navigator === "undefined"
@@ -43,6 +46,9 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
   );
   const [highPrecision, setHighPrecision] = useState(false);
   const [simcVersion, setSimcVersion] = useState<"weekly" | "nightly" | "latest">("weekly");
+  const [candidateLoading, setCandidateLoading] = useState(false);
+  const [candidates, setCandidates] = useState<TopGearCandidate[]>([]);
+  const [selected, setSelected] = useState<string[]>([]);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   return (
@@ -52,6 +58,7 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
         event.preventDefault();
         const trimmedProfile = simcProfile.trim();
         const parsedNumEnemies = Number(numEnemies);
+        const parsedComboLimit = Number(comboLimit);
         const parsedFightLength = Number(fightLengthSeconds);
         const parsedThreadCount = Number(threadCount);
 
@@ -62,6 +69,11 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
 
         if (!Number.isInteger(parsedNumEnemies) || parsedNumEnemies < 1) {
           setValidationError("Num Enemies 必须是大于 0 的整数。");
+          return;
+        }
+
+        if (!Number.isInteger(parsedComboLimit) || parsedComboLimit < 1 || parsedComboLimit > 50) {
+          setValidationError("组合上限必须是 1 到 50 的整数。");
           return;
         }
         if (
@@ -76,15 +88,23 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
           return;
         }
 
+        if (selected.length > 0 && selected.length < 2) {
+          setValidationError("至少勾选 2 个饰品，才能生成组合。");
+          return;
+        }
+
         setValidationError(null);
         if (disabled) {
           setValidationError("请先登录后再提交模拟。");
           return;
         }
+
         await onSubmit({
           simcProfile: trimmedProfile,
           fightStyle,
           numEnemies: parsedNumEnemies,
+          comboLimit: parsedComboLimit,
+          selectedTrinkets: selected,
           simulationOptions: {
             fightLengthSeconds: parsedFightLength,
             highPrecision,
@@ -96,38 +116,17 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
     >
       <div className="form-header">
         <div>
-          <div className="eyebrow">DPS 模拟</div>
-          <h1>冰法在线 DPS 模拟</h1>
+          <div className="eyebrow">Top Gear</div>
+          <h1>饰品组合 Top Gear</h1>
         </div>
-        <div className="hero-badge">SimulationCraft Runner</div>
+        <div className="hero-badge">Trinket 1 + Trinket 2</div>
       </div>
-      <p className="muted">
-        当前仅支持冰法。Fight Style 直接对齐 Raidbots / SimulationCraft。
-      </p>
-      <div className="info-strip">
-        <span>AOE 通过 Num Enemies 表达。</span>
-        <span>Dungeon Slice 适合大秘境切片。</span>
-      </div>
-
-      <div className="form-subgrid">
-        <div className="callout-card">
-          <div className="eyebrow">当前预设</div>
-          <strong>{FIGHT_STYLE_OPTIONS.find((option) => option.value === fightStyle)?.label}</strong>
-          <p className="muted helper-copy">{FIGHT_STYLE_DETAILS[fightStyle]}</p>
-        </div>
-        <div className="callout-card">
-          <div className="eyebrow">本次输入</div>
-          <strong>{numEnemies || "1"} Targets</strong>
-          <p className="muted helper-copy">
-            你粘贴的导出会原样保留，本地 WASM 只追加 Fight Style 和目标数量。
-          </p>
-        </div>
-      </div>
+      <p className="muted">先解析候选饰品，再勾选要参与组合的条目。</p>
 
       <label className="field">
         <span>SimC Profile</span>
         <textarea
-          aria-label="SimC Profile"
+          aria-label="TopGear SimC Profile"
           value={simcProfile}
           onChange={(event) => {
             setSimcProfile(event.target.value);
@@ -136,15 +135,95 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
             }
           }}
           placeholder={"mage=Demo\nspec=frost"}
-          rows={12}
+          rows={10}
         />
       </label>
+
+      <div className="field">
+        <button
+          className="secondary-button"
+          disabled={candidateLoading || isPending || disabled}
+          onClick={async () => {
+            const trimmedProfile = simcProfile.trim();
+            if (!trimmedProfile) {
+              setValidationError("请先粘贴 SimC profile，再解析候选饰品。");
+              return;
+            }
+
+            setValidationError(null);
+            setCandidateLoading(true);
+            try {
+              const items = extractLocalTopGearCandidates(trimmedProfile);
+              if (items.length === 0) {
+                throw new Error("未找到可用饰品，请确认 SimC 导出包含 trinket1/trinket2。");
+              }
+
+              setCandidates(items);
+              setSelected(items.map((item) => item.key));
+            } catch (error) {
+              setValidationError(error instanceof Error ? error.message : "解析候选饰品失败");
+            } finally {
+              setCandidateLoading(false);
+            }
+          }}
+          type="button"
+        >
+          {candidateLoading ? "解析中..." : "解析候选饰品"}
+        </button>
+      </div>
+
+      {candidates.length > 0 ? (
+        <section className="topgear-candidates">
+          <div className="muted">
+            已解析 {candidates.length} 个候选饰品，已勾选 {selected.length} 个。
+          </div>
+          <div className="topgear-candidate-list">
+            {candidates.map((item) => {
+              const checked = selected.includes(item.key);
+              return (
+                <label className="topgear-candidate-item" key={`${item.id}-${item.key}`}>
+                  <input
+                    checked={checked}
+                    onChange={(event) => {
+                      const next = event.currentTarget.checked
+                        ? Array.from(new Set([...selected, item.key]))
+                        : selected.filter((value) => value !== item.key);
+                      setSelected(next);
+                    }}
+                    type="checkbox"
+                  />
+                  <span className="topgear-candidate-content">
+                    {item.wowheadUrl ? (
+                      <a
+                        className="topgear-item-link"
+                        data-wowhead={item.wowheadQuery ?? undefined}
+                        href={item.wowheadUrl}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {item.name}
+                      </a>
+                    ) : (
+                      <strong>{item.name}</strong>
+                    )}
+                    <span className="muted">
+                      {item.itemLevel ? ` ilvl ${item.itemLevel}` : " ilvl --"} ·{" "}
+                      {item.source === "equipped" ? "已装备" : "背包"} · {item.slot}
+                    </span>
+                    <code className="topgear-item-key">{item.key}</code>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <div className="field-grid">
         <label className="field">
           <span>Fight Style</span>
           <select
-            aria-label="Fight Style"
+            aria-label="TopGear Fight Style"
             value={fightStyle}
             onChange={(event) => setFightStyle(event.target.value as FightStyle)}
           >
@@ -155,31 +234,38 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
             ))}
           </select>
         </label>
-
         <label className="field">
           <span>Num Enemies</span>
           <input
-            aria-label="Num Enemies"
+            aria-label="TopGear Num Enemies"
             min={1}
             max={20}
             step={1}
             type="number"
             value={numEnemies}
-            onChange={(event) => {
-              setNumEnemies(event.target.value);
-              if (validationError) {
-                setValidationError(null);
-              }
-            }}
+            onChange={(event) => setNumEnemies(event.target.value)}
           />
         </label>
       </div>
+
+      <label className="field">
+        <span>组合上限 Combo Limit</span>
+        <input
+          aria-label="TopGear Combo Limit"
+          min={1}
+          max={50}
+          step={1}
+          type="number"
+          value={comboLimit}
+          onChange={(event) => setComboLimit(event.target.value)}
+        />
+      </label>
 
       <div className="field-grid">
         <label className="field">
           <span>Fight Length</span>
           <select
-            aria-label="Fight Length"
+            aria-label="TopGear Fight Length"
             value={fightLengthSeconds}
             onChange={(event) => setFightLengthSeconds(event.target.value)}
           >
@@ -197,7 +283,7 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
         <label className="field">
           <span>SimC Version</span>
           <select
-            aria-label="SimC Version"
+            aria-label="TopGear SimC Version"
             value={simcVersion}
             onChange={(event) => setSimcVersion(event.target.value as "weekly" | "nightly" | "latest")}
           >
@@ -209,7 +295,7 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
         <label className="field">
           <span>Threads</span>
           <input
-            aria-label="Threads"
+            aria-label="TopGear Threads"
             min={1}
             max={16}
             step={1}
@@ -227,7 +313,7 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
 
       <label className="field topgear-candidate-item">
         <input
-          aria-label="High Precision"
+          aria-label="TopGear High Precision"
           checked={highPrecision}
           onChange={(event) => setHighPrecision(event.target.checked)}
           type="checkbox"
@@ -240,7 +326,7 @@ export function DpsForm({ onSubmit, isPending, disabled = false }: DpsFormProps)
       {validationError ? <div className="error-box">{validationError}</div> : null}
 
       <button className="primary-button" disabled={isPending || disabled} type="submit">
-        {isPending ? "提交中..." : "开始模拟"}
+        {isPending ? "提交中..." : "开始 Top Gear"}
       </button>
     </form>
   );

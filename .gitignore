@@ -9,3 +9,19 @@ stdout
 .worktrees
 worktrees
 *.log
+.env
+.env.*
+playwright-report
+test-results
+
+# Local SimulationCraft/WASM build artifacts
+labs/simc-wasm/.build/
+labs/simc-wasm/public/dist/
+public/simc-dist/*
+!public/simc-dist/README.md
+
+# Local scratch/data files
+.playwright-cli/
+2awfeaa
+test
+ItemSparse.*.csv

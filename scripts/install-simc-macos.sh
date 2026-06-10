@@ -8,7 +8,7 @@ SRC_DIR="$TOOLS_DIR/simc-src"
 BIN_DIR="$TOOLS_DIR/bin"
 SIMC_LINK="$BIN_DIR/simc"
 SIMC_REPO="https://github.com/simulationcraft/simc.git"
-SIMC_BRANCH="${SIMC_BRANCH:-thewarwithin}"
+SIMC_BRANCH="${SIMC_BRANCH:-midnight}"
 
 if [[ "$(uname -s)" != "Darwin" ]]; then
   echo "This script is only for macOS." >&2

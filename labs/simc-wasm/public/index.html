@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SimulationCraft WASM 实验</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #101114;
+        color: #f3f4f6;
+      }
+
+      body {
+        margin: 0;
+        padding: 32px;
+      }
+
+      main {
+        max-width: 1120px;
+        margin: 0 auto;
+        display: grid;
+        gap: 20px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+      }
+
+      p {
+        margin: 0;
+        color: #b9bec8;
+        line-height: 1.7;
+      }
+
+      textarea,
+      pre,
+      input,
+      select,
+      button {
+        font: inherit;
+      }
+
+      textarea,
+      pre,
+      input,
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #333844;
+        border-radius: 8px;
+        background: #181b20;
+        color: #f3f4f6;
+      }
+
+      textarea {
+        min-height: 280px;
+        padding: 14px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      pre {
+        min-height: 220px;
+        max-height: 520px;
+        overflow: auto;
+        padding: 14px;
+        white-space: pre-wrap;
+      }
+
+      label {
+        display: grid;
+        gap: 8px;
+        color: #d8dbe2;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .panel {
+        border: 1px solid #2c313b;
+        border-radius: 8px;
+        background: #15171c;
+        padding: 18px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      button {
+        border: 0;
+        border-radius: 8px;
+        background: #e6b450;
+        color: #17120a;
+        padding: 10px 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+      }
+
+      .status {
+        color: #b9bec8;
+      }
+
+      @media (max-width: 760px) {
+        body {
+          padding: 18px;
+        }
+
+        .grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header class="panel">
+        <h1>SimulationCraft WASM 实验</h1>
+        <p>
+          这是独立实验页。它会把 SimC profile 发送到 Web Worker，在浏览器本地调用
+          <code>simc.wasm</code>。如果还没构建 wasm，运行按钮会直接报缺少产物。
+        </p>
+      </header>
+
+      <section class="panel">
+        <label>
+          SimC Profile
+          <textarea id="profile" spellcheck="false">warlock=Demo
+spec=demonology
+level=80
+race=orc
+role=spell
+position=back
+talents=
+</textarea>
+        </label>
+
+        <div class="grid">
+          <label>
+            Fight Style
+            <select id="fightStyle">
+              <option value="Patchwerk">Patchwerk</option>
+              <option value="DungeonSlice">Dungeon Slice</option>
+              <option value="TargetDummy">Target Dummy</option>
+            </select>
+          </label>
+          <label>
+            Num Enemies
+            <input id="numEnemies" type="number" min="1" max="20" value="1" />
+          </label>
+          <label>
+            Fight Length
+            <input id="fightLength" type="number" min="20" max="600" value="300" />
+          </label>
+          <label>
+            Iterations
+            <input id="iterations" type="number" min="1" max="10000" value="100" />
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="run" type="button">本地运行 SimC WASM</button>
+          <span id="status" class="status">等待运行</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>输出</h2>
+        <pre id="output">还没有输出。</pre>
+      </section>
+    </main>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
+

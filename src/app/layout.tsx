@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Raidbot-like DPS Sim",
-  description: "Warlock Demonology DPS simulation inspired by Raidbots.",
+  description: "Frost Mage DPS simulation inspired by Raidbots.",
 };
 
 export default function RootLayout({

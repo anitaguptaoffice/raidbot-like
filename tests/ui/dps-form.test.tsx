@@ -6,10 +6,10 @@ import { describe, expect, it, vi } from "vitest";
 import { DpsForm } from "@/ui/dps-form";
 
 describe("dps-form", () => {
-  it("shows the supported fight styles and demonology restriction", () => {
+  it("shows the supported fight styles and frost mage restriction", () => {
     render(<DpsForm onSubmit={vi.fn()} isPending={false} />);
 
-    expect(screen.getByText(/当前仅支持恶魔术/i)).toBeInTheDocument();
+    expect(screen.getByText(/当前仅支持冰法/i)).toBeInTheDocument();
     expect(screen.getByText(/AOE 通过 Num Enemies 表达/i)).toBeInTheDocument();
     expect(screen.getByText(/Dungeon Slice 适合大秘境切片/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/fight style/i)).toBeInTheDocument();
@@ -30,7 +30,7 @@ describe("dps-form", () => {
 
     await user.type(
       screen.getByLabelText(/simc profile/i),
-      "warlock=Demo\nspec=demonology",
+      "mage=Demo\nspec=frost",
     );
     await user.selectOptions(screen.getByLabelText(/fight style/i), "dungeon_slice");
     await user.clear(screen.getByLabelText(/num enemies/i));
@@ -38,9 +38,15 @@ describe("dps-form", () => {
     await user.click(screen.getByRole("button", { name: /开始模拟/i }));
 
     expect(onSubmit).toHaveBeenCalledWith({
-      simcProfile: "warlock=Demo\nspec=demonology",
+      simcProfile: "mage=Demo\nspec=frost",
       fightStyle: "dungeon_slice",
       numEnemies: 5,
+      simulationOptions: {
+        fightLengthSeconds: 300,
+        highPrecision: false,
+        simcVersion: "weekly",
+        threadCount: 4,
+      },
     });
     expect(screen.getByText(/6 分钟大秘境切片/i)).toBeInTheDocument();
   });

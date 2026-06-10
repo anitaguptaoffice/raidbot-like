@@ -3,13 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   FIGHT_STYLE_OPTIONS,
   validateCreateSimInput,
-  validateSimcProfileForDemonology,
+  validateSimcProfileForFrostMage,
 } from "@/shared/sim-types";
 
 describe("sim-types", () => {
   it("accepts a valid create sim payload", () => {
     const result = validateCreateSimInput({
-      simcProfile: "warlock=Demo\nspec=demonology",
+      simcProfile: "mage=Demo\nspec=frost",
       fightStyle: "patchwerk",
       numEnemies: 1,
     });
@@ -21,7 +21,7 @@ describe("sim-types", () => {
   it("rejects an unsupported fight style", () => {
     expect(() =>
       validateCreateSimInput({
-        simcProfile: "warlock=Demo\nspec=demonology",
+        simcProfile: "mage=Demo\nspec=frost",
         fightStyle: "aoe",
         numEnemies: 1,
       }),
@@ -31,20 +31,16 @@ describe("sim-types", () => {
   it("rejects a non-positive enemy count", () => {
     expect(() =>
       validateCreateSimInput({
-        simcProfile: "warlock=Demo\nspec=demonology",
+        simcProfile: "mage=Demo\nspec=frost",
         fightStyle: "patchwerk",
         numEnemies: 0,
       }),
     ).toThrow(/num enemies/i);
   });
 
-  it("recognizes a demonology profile", () => {
-    expect(
-      validateSimcProfileForDemonology("warlock=Demo\nspec=demonology"),
-    ).toBe(true);
-    expect(validateSimcProfileForDemonology("priest=Shadow\nspec=shadow")).toBe(
-      false,
-    );
+  it("recognizes a frost mage profile", () => {
+    expect(validateSimcProfileForFrostMage("mage=Demo\nspec=frost")).toBe(true);
+    expect(validateSimcProfileForFrostMage("warlock=Demo\nspec=demonology")).toBe(false);
   });
 
   it("exposes the three supported fight styles", () => {
