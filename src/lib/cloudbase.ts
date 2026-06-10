@@ -79,6 +79,12 @@ type TempFileURLResult = {
 };
 type CloudbaseAppLike = {
   auth: () => AuthLike;
+  callFunction?: (params: {
+    name: string;
+    data?: Record<string, unknown>;
+  }) => Promise<{
+    result?: unknown;
+  }>;
   getTempFileURL?: (
     params: {
       fileList: Array<
@@ -90,6 +96,15 @@ type CloudbaseAppLike = {
       >;
     },
   ) => Promise<TempFileURLResult>;
+};
+type CloudbaseCredentials = {
+  token_type?: string;
+  access_token?: string;
+  refresh_token?: string;
+  expires_in?: number;
+  sub?: string;
+  version?: string;
+  expires_at?: string;
 };
 
 let authInstance: AuthLike | null = null;
@@ -433,6 +448,31 @@ export async function getSimcWasmAssetBaseUrl() {
   }
 
   const app = getCloudbaseApp();
+  if (app.callFunction) {
+    const credentials = await getAuth().getCredentials?.() as CloudbaseCredentials | undefined;
+    if (!credentials?.access_token) {
+      throw new Error("登录态已失效，请重新登录后再加载 SimulationCraft WASM。");
+    }
+
+    const response = await app.callFunction({
+      name: "getSimcWasmUrl",
+      data: {
+        credentials,
+      },
+    });
+    const result = (response.result ?? response) as {
+      code?: string;
+      message?: string;
+      wasmGzipUrl?: string;
+    } | null;
+
+    if (result?.code !== "SUCCESS" || !result.wasmGzipUrl) {
+      throw new Error(result?.message || "获取 SimulationCraft WASM 下载链接失败。");
+    }
+
+    return result.wasmGzipUrl;
+  }
+
   if (!app.getTempFileURL) {
     throw new Error("当前 CloudBase SDK 不支持获取云存储临时下载链接。");
   }

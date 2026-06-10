@@ -1,0 +1,15 @@
+{
+  "envId": "raidbot-5gh3h2nx762bedc5",
+  "functionRoot": "./cloudfunctions",
+  "functions": [
+    {
+      "name": "getSimcWasmUrl",
+      "runtime": "Nodejs18.15",
+      "timeout": 10,
+      "envVariables": {
+        "SIMC_WASM_FILE_ID": "cloud://raidbot-5gh3h2nx762bedc5.7261-raidbot-5gh3h2nx762bedc5-1251932919/simc-dist/current/simc.wasm.gz",
+        "SIMC_WASM_URL_MAX_AGE": "1800"
+      }
+    }
+  ]
+}
