@@ -80,8 +80,9 @@ async function loadWasmBinary(normalizedBase) {
 async function getModule(assetBaseUrl) {
   if (!modulePromise) {
     const normalizedBase = assetBaseUrl.replace(/\/$/, "");
+    const sameOriginModuleBase = new URL("/simc-dist", self.location.origin).href.replace(/\/$/, "");
     const [simcModule, wasmBinary] = await Promise.all([
-      import(`${normalizedBase}/simc.js`),
+      import(`${sameOriginModuleBase}/simc.js`),
       loadWasmBinary(normalizedBase),
     ]);
 
@@ -92,7 +93,7 @@ async function getModule(assetBaseUrl) {
           return `${normalizedBase}/${path}`;
         }
 
-        return `${normalizedBase}/${path}`;
+        return `${sameOriginModuleBase}/${path}`;
       },
       print(text) {
         pushLog(text);
